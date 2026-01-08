@@ -73,39 +73,22 @@ class Scheduler
             $this->setTermItem($term, $id);
         }
 
-        // remaining terms
+        // remaining terms - use backtracking
+        $unlockedTerms = [];
+
         foreach ($this->terms as $term) {
-            if ($term->getItemId() !== null) {
-                continue;
+            if ($term->getItemId() === null) {
+                $unlockedTerms[] = $term;
             }
+        }
 
-            $conflicts = [$term];
+        if (!empty($unlockedTerms) && !$this->backtrackSchedule($unlockedTerms, 0)) {
+            // collect all conflicting terms for error message
+            $conflicts = $this->collectConflicts($unlockedTerms);
+            $e = new SchedulerException('Conflict in terms');
+            $e->setConflictingTerms($conflicts);
 
-            // check already occupied terms for all items
-            foreach ($this->items as $id => $items) {
-                $isConflict = false;
-
-                foreach ($items as $occupied) {
-                    if ($isConflict = $this->checkConflict($term, $occupied)) {
-                        $conflicts[] = $occupied;
-
-                        break;
-                    }
-                }
-
-                if (!$isConflict) {
-                    $this->setTermItem($term, $id);
-
-                    break;
-                }
-            }
-
-            if ($isConflict) {
-                $e = new SchedulerException('Conflict in terms');
-                $e->setConflictingTerms($conflicts);
-
-                throw $e;
-            }
+            throw $e;
         }
     }
 
@@ -154,5 +137,96 @@ class Scheduler
     {
         $this->items[$id][] = $term;
         $term->setItemId($id);
+    }
+
+    /**
+     * Remove a term assignment (for backtracking).
+     */
+    private function unsetTermItem(TermInterface $term, int $id)
+    {
+        $this->items[$id] = \array_filter($this->items[$id], function ($t) use ($term) {
+            return $t !== $term;
+        });
+
+        // clear term's item assignment
+        $term->setItemId(null);
+    }
+
+    /**
+     * Recursively assign terms to items using backtracking.
+     *
+     * @param TermInterface[] $unlockedTerms
+     */
+    private function backtrackSchedule(array $unlockedTerms, int $termIndex): bool
+    {
+        // all terms assigned
+        if ($termIndex >= \count($unlockedTerms)) {
+            return true;
+        }
+
+        $term = $unlockedTerms[$termIndex];
+
+        // try assigning to each item
+        foreach ($this->items as $itemId => $occupiedTerms) {
+            // check if term conflicts with any term on this item
+            $hasConflict = false;
+
+            foreach ($occupiedTerms as $occupied) {
+                if ($this->checkConflict($term, $occupied)) {
+                    $hasConflict = true;
+
+                    break;
+                }
+            }
+
+            if (!$hasConflict) {
+                // try this assignment
+                $this->setTermItem($term, $itemId);
+
+                // recursively assign remaining terms
+                if ($this->backtrackSchedule($unlockedTerms, $termIndex + 1)) {
+                    return true;
+                }
+
+                // backtrack: undo assignment
+                $this->unsetTermItem($term, $itemId);
+            }
+        }
+
+        // no valid assignment found
+        return false;
+    }
+
+    /**
+     * Collect conflicting terms when no solution found.
+     *
+     * @param TermInterface[] $unlockedTerms
+     *
+     * @return TermInterface[]
+     */
+    private function collectConflicts(array $unlockedTerms): array
+    {
+        // find the first term that couldn't be assigned
+        foreach ($unlockedTerms as $term) {
+            if ($term->getItemId() !== null) {
+                continue;
+            }
+
+            $conflicts = [$term];
+
+            // collect all terms this conflicts with
+            foreach ($this->items as $itemId => $occupiedTerms) {
+                foreach ($occupiedTerms as $occupied) {
+                    if ($this->checkConflict($term, $occupied)) {
+                        $conflicts[] = $occupied;
+                    }
+                }
+            }
+
+            return $conflicts;
+        }
+
+        // fallback: return first term
+        return isset($unlockedTerms[0]) ? [$unlockedTerms[0]] : [];
     }
 }

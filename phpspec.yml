@@ -1,4 +1,0 @@
-suites:
-    riesenia_suite:
-        namespace: Riesenia\Scheduler
-        psr4_prefix: Riesenia\Scheduler
