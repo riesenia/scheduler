@@ -197,9 +197,9 @@ class Term implements TermInterface
 {
     use TermTrait;
 
-    private \DateTimeInterface $from;
-    private \DateTimeInterface $to;
-    private ?int $lockedId;
+    private $from;
+    private $to;
+    private $lockedId;
 
     public function __construct(\DateTimeInterface $from, \DateTimeInterface $to, ?int $lockedId = null)
     {
