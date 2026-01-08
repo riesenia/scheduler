@@ -5,7 +5,6 @@
  * Licensed under the MIT License
  * (c) RIESENIA.com
  */
-
 declare(strict_types=1);
 
 namespace Riesenia\Scheduler;
@@ -112,8 +111,6 @@ class Scheduler
 
     /**
      * Add item.
-     *
-     * @param int $id
      */
     public function addItem(int $id)
     {
@@ -124,8 +121,6 @@ class Scheduler
 
     /**
      * Add term.
-     *
-     * @param TermInterface $term
      */
     public function addTerm(TermInterface $term)
     {
@@ -146,11 +141,6 @@ class Scheduler
 
     /**
      * Check if two terms overlap.
-     *
-     * @param TermInterface $term1
-     * @param TermInterface $term2
-     *
-     * @return bool
      */
     private function checkConflict(TermInterface $term1, TermInterface $term2): bool
     {
@@ -159,9 +149,6 @@ class Scheduler
 
     /**
      * Assign a term to an item.
-     *
-     * @param TermInterface $term
-     * @param int           $id
      */
     private function setTermItem(TermInterface $term, int $id)
     {

@@ -5,7 +5,6 @@
  * Licensed under the MIT License
  * (c) RIESENIA.com
  */
-
 declare(strict_types=1);
 
 namespace Riesenia\Scheduler;
@@ -20,8 +19,6 @@ trait TermTrait
 
     /**
      * Set event to item.
-     *
-     * @param int|null $id
      */
     public function setItemId(?int $id)
     {
@@ -30,8 +27,6 @@ trait TermTrait
 
     /**
      * Get event item.
-     *
-     * @return int|null
      */
     public function getItemId(): ?int
     {
