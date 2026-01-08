@@ -1,10 +1,5 @@
 # Scheduler
 
-[![Build Status](https://github.com/riesenia/scheduler/workflows/Test/badge.svg)](https://github.com/riesenia/scheduler/actions)
-[![Latest Version](https://img.shields.io/packagist/v/riesenia/scheduler.svg?style=flat-square)](https://packagist.org/packages/riesenia/scheduler)
-[![Total Downloads](https://img.shields.io/packagist/dt/riesenia/scheduler.svg?style=flat-square)](https://packagist.org/packages/riesenia/scheduler)
-[![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
-
 PHP script providing basic scheduling functionality.
 
 ## Installation
