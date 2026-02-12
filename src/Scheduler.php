@@ -324,17 +324,20 @@ class Scheduler
             ];
         }
 
+        /** @var string $solverBinary */
+        $solverBinary = $this->solverBinary;
+
         $process = \proc_open(
-            $this->solverBinary,
+            $solverBinary,
             [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']],
             $pipes
         );
 
         if (!\is_resource($process)) {
-            throw new \RuntimeException('Failed to start solver: ' . $this->solverBinary);
+            throw new \RuntimeException('Failed to start solver: ' . $solverBinary);
         }
 
-        \fwrite($pipes[0], \json_encode($input));
+        \fwrite($pipes[0], (string) \json_encode($input));
         \fclose($pipes[0]);
 
         $stdout = \stream_get_contents($pipes[1]);
