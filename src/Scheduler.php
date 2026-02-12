@@ -17,6 +17,9 @@ class Scheduler
     /** @var TermInterface[] */
     protected $terms = [];
 
+    /** @var string|null */
+    protected $solverBinary = null;
+
     /**
      * Create scheduler.
      *
@@ -35,10 +38,28 @@ class Scheduler
     }
 
     /**
+     * Set path to the external Rust solver binary.
+     *
+     * @return $this
+     */
+    public function setSolverBinary(string $path): self
+    {
+        $this->solverBinary = $path;
+
+        return $this;
+    }
+
+    /**
      * Schedule terms on items.
      */
     public function schedule()
     {
+        if ($this->solverBinary !== null) {
+            $this->solveExternal();
+
+            return;
+        }
+
         if (!$this->items || !$this->terms) {
             throw new \InvalidArgumentException('Set at least one item and term');
         }
@@ -81,6 +102,11 @@ class Scheduler
                 $unlockedTerms[] = $term;
             }
         }
+
+        // Sort by duration (shortest first) - shorter terms are typically more constrained
+        usort($unlockedTerms, function (TermInterface $a, TermInterface $b) {
+            return ($a->getTo()->getTimestamp() - $a->getFrom()->getTimestamp()) <=> ($b->getTo()->getTimestamp() - $b->getFrom()->getTimestamp());
+        });
 
         if (!empty($unlockedTerms) && !$this->backtrackSchedule($unlockedTerms, 0)) {
             // collect all conflicting terms for error message
@@ -183,9 +209,12 @@ class Scheduler
                 // try this assignment
                 $this->setTermItem($term, $itemId);
 
-                // recursively assign remaining terms
-                if ($this->backtrackSchedule($unlockedTerms, $termIndex + 1)) {
-                    return true;
+                // forward checking: verify remaining terms still have valid options
+                if ($this->hasValidOptionsForRemaining($unlockedTerms, $termIndex + 1)) {
+                    // recursively assign remaining terms
+                    if ($this->backtrackSchedule($unlockedTerms, $termIndex + 1)) {
+                        return true;
+                    }
                 }
 
                 // backtrack: undo assignment
@@ -195,6 +224,48 @@ class Scheduler
 
         // no valid assignment found
         return false;
+    }
+
+    /**
+     * Check if a term has at least one valid item.
+     */
+    private function hasValidItem(TermInterface $term): bool
+    {
+        foreach ($this->items as $occupiedTerms) {
+            $hasConflict = false;
+
+            foreach ($occupiedTerms as $occupied) {
+                if ($this->checkConflict($term, $occupied)) {
+                    $hasConflict = true;
+
+                    break;
+                }
+            }
+
+            if (!$hasConflict) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Forward checking: verify all remaining terms have at least one valid option.
+     *
+     * @param TermInterface[] $terms
+     */
+    private function hasValidOptionsForRemaining(array $terms, int $fromIndex): bool
+    {
+        $count = \count($terms);
+
+        for ($i = $fromIndex; $i < $count; $i++) {
+            if (!$this->hasValidItem($terms[$i])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
@@ -228,5 +299,88 @@ class Scheduler
 
         // fallback: return first term
         return isset($unlockedTerms[0]) ? [$unlockedTerms[0]] : [];
+    }
+
+    /**
+     * Delegate scheduling to the external Rust solver binary.
+     */
+    private function solveExternal()
+    {
+        if (!$this->items || !$this->terms) {
+            throw new \InvalidArgumentException('Set at least one item and term');
+        }
+
+        $input = [
+            'items' => \array_map('intval', \array_keys($this->items)),
+            'terms' => [],
+        ];
+
+        foreach ($this->terms as $index => $term) {
+            $input['terms'][] = [
+                'id' => $index,
+                'from' => $term->getFrom()->getTimestamp(),
+                'to' => $term->getTo()->getTimestamp(),
+                'locked_id' => $term->getLockedId(),
+            ];
+        }
+
+        $process = \proc_open(
+            $this->solverBinary,
+            [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']],
+            $pipes
+        );
+
+        if (!\is_resource($process)) {
+            throw new \RuntimeException('Failed to start solver: ' . $this->solverBinary);
+        }
+
+        \fwrite($pipes[0], \json_encode($input));
+        \fclose($pipes[0]);
+
+        $stdout = \stream_get_contents($pipes[1]);
+        \fclose($pipes[1]);
+        \fclose($pipes[2]);
+
+        $exitCode = \proc_close($process);
+
+        if ($exitCode !== 0 || $stdout === false || $stdout === '') {
+            throw new \RuntimeException('Solver failed with exit code ' . $exitCode);
+        }
+
+        $result = \json_decode($stdout, true);
+
+        if ($result === null) {
+            throw new \RuntimeException('Solver returned invalid JSON');
+        }
+
+        switch ($result['status']) {
+            case 'ok':
+                foreach ($result['assignments'] as $assignment) {
+                    $term = $this->terms[$assignment['term_id']];
+                    $itemId = $assignment['item_id'];
+                    $this->setTermItem($term, $itemId);
+                }
+
+                break;
+
+            case 'invalid_item':
+                $e = new TermInvalidItemException($result['message']);
+                $e->setTerm($this->terms[$result['term_id']]);
+                $e->setItem($result['item_id']);
+
+                throw $e;
+
+            case 'conflict':
+                $e = new SchedulerException($result['message']);
+                $conflicting = \array_map(function ($id) {
+                    return $this->terms[$id];
+                }, $result['conflicts']);
+                $e->setConflictingTerms($conflicting);
+
+                throw $e;
+
+            default:
+                throw new \RuntimeException('Unknown solver status: ' . $result['status']);
+        }
     }
 }

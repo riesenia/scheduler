@@ -18,6 +18,11 @@ use Riesenia\Scheduler\TermTrait;
 
 class SchedulerTest extends TestCase
 {
+    protected function createScheduler(array $items, array $terms): Scheduler
+    {
+        return new Scheduler($items, $terms);
+    }
+
     public function testChecksMoreOverlapingTermsThanItems(): void
     {
         $term1 = new Term(new \DateTimeImmutable('2019-01-01 07:00:00'), new \DateTimeImmutable('2019-01-01 12:00:00'));
@@ -26,7 +31,7 @@ class SchedulerTest extends TestCase
         $term4 = new Term(new \DateTimeImmutable('2019-01-01 17:00:00'), new \DateTimeImmutable('2019-01-01 20:00:00'), 2);
         $term5 = new Term(new \DateTimeImmutable('2019-01-01 09:00:00'), new \DateTimeImmutable('2019-01-01 15:00:00'));
 
-        $scheduler = new Scheduler([1, 2], [$term1, $term2, $term3, $term4]);
+        $scheduler = $this->createScheduler([1, 2], [$term1, $term2, $term3, $term4]);
         $scheduler->addTerm($term5);
 
         $this->expectException(SchedulerException::class);
@@ -41,7 +46,7 @@ class SchedulerTest extends TestCase
         $term4 = new Term(new \DateTimeImmutable('2019-01-01 17:00:00'), new \DateTimeImmutable('2019-01-01 20:00:00'), 2);
         $term5 = new Term(new \DateTimeImmutable('2019-01-01 19:00:00'), new \DateTimeImmutable('2019-01-01 21:00:00'), 2);
 
-        $scheduler = new Scheduler([1, 2], [$term1, $term2, $term3, $term4]);
+        $scheduler = $this->createScheduler([1, 2], [$term1, $term2, $term3, $term4]);
         $scheduler->addTerm($term5);
 
         $this->expectException(SchedulerException::class);
@@ -56,7 +61,7 @@ class SchedulerTest extends TestCase
         $term4 = new Term(new \DateTimeImmutable('2019-01-01 17:00:00'), new \DateTimeImmutable('2019-01-01 20:00:00'), 2);
         $term5 = new Term(new \DateTimeImmutable('2019-01-01 21:00:00'), new \DateTimeImmutable('2019-01-01 23:00:00'));
 
-        $scheduler = new Scheduler([1, 2], [$term1, $term2, $term3, $term4]);
+        $scheduler = $this->createScheduler([1, 2], [$term1, $term2, $term3, $term4]);
         $scheduler->addTerm($term5);
         $scheduler->schedule();
 
@@ -96,7 +101,7 @@ class SchedulerTest extends TestCase
         $term18 = new Term(new \DateTimeImmutable('2019-01-01 22:00:00'), new \DateTimeImmutable('2019-01-01 23:00:00'));
         $term19 = new Term(new \DateTimeImmutable('2019-01-01 21:00:00'), new \DateTimeImmutable('2019-01-01 22:00:00'));
 
-        $scheduler = new Scheduler([1, 2], [$term1, $term2, $term3, $term4]);
+        $scheduler = $this->createScheduler([1, 2], [$term1, $term2, $term3, $term4]);
         $scheduler->addTerm($term5);
         $scheduler->addTerm($term6);
         $scheduler->addTerm($term7);
@@ -132,7 +137,7 @@ class SchedulerTest extends TestCase
         $term1 = new Term(new \DateTimeImmutable('2019-01-01 07:00:00'), new \DateTimeImmutable('2019-01-01 12:00:00'));
         $term2 = new Term(new \DateTimeImmutable('2019-01-01 13:00:00'), new \DateTimeImmutable('2019-01-01 16:00:00'), 999);
 
-        $scheduler = new Scheduler([1, 2], [$term1, $term2]);
+        $scheduler = $this->createScheduler([1, 2], [$term1, $term2]);
 
         $this->expectException(TermInvalidItemException::class);
         $scheduler->schedule();
@@ -140,7 +145,7 @@ class SchedulerTest extends TestCase
 
     public function testThrowsExceptionForEmptyInputs(): void
     {
-        $scheduler = new Scheduler([], []);
+        $scheduler = $this->createScheduler([], []);
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Set at least one item and term');
@@ -172,7 +177,7 @@ class SchedulerTest extends TestCase
         $term3 = new Term(new \DateTimeImmutable('2019-01-01 10:00:00'), new \DateTimeImmutable('2019-01-01 12:00:00'), 2); // locked to Item2
         $term4 = new Term(new \DateTimeImmutable('2019-01-01 15:00:00'), new \DateTimeImmutable('2019-01-01 16:00:00'), 2); // locked to Item2
 
-        $scheduler = new Scheduler([1, 2], [$term1, $term2, $term3, $term4]);
+        $scheduler = $this->createScheduler([1, 2], [$term1, $term2, $term3, $term4]);
         $scheduler->schedule();
 
         $terms = $scheduler->getTerms();

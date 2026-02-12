@@ -26,11 +26,14 @@ jobs:
         php-version: ${{ matrix.php-version }}
         coverage: none
 
+    - name: Build Rust solver
+      run: cargo build --release --manifest-path solver/Cargo.toml
+
     - name: Composer install
       run: composer update
 
     - name: Run phpunit
-      run: vendor/bin/phpunit 
+      run: vendor/bin/phpunit
 
     - name: Install php-cs-fixer
       run: composer require --dev friendsofphp/php-cs-fixer:^3.0
