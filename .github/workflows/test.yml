@@ -28,6 +28,7 @@ jobs:
 
     - name: Build Rust solver
       run: cargo build --release --manifest-path solver/Cargo.toml
+      if: ${{ matrix.php-version != '7.2' && matrix.php-version != '7.3' }}
 
     - name: Composer install
       run: composer update
