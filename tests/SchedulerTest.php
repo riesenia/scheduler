@@ -18,11 +18,6 @@ use Riesenia\Scheduler\TermTrait;
 
 class SchedulerTest extends TestCase
 {
-    protected function createScheduler(array $items, array $terms): Scheduler
-    {
-        return new Scheduler($items, $terms);
-    }
-
     public function testChecksMoreOverlapingTermsThanItems(): void
     {
         $term1 = new Term(new \DateTimeImmutable('2019-01-01 07:00:00'), new \DateTimeImmutable('2019-01-01 12:00:00'));
@@ -192,6 +187,11 @@ class SchedulerTest extends TestCase
         // Verify locked terms are assigned correctly
         $this->assertEquals(2, $term3->getItemId());
         $this->assertEquals(2, $term4->getItemId());
+    }
+
+    protected function createScheduler(array $items, array $terms): Scheduler
+    {
+        return new Scheduler($items, $terms);
     }
 }
 

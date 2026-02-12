@@ -18,7 +18,7 @@ class Scheduler
     protected $terms = [];
 
     /** @var string|null */
-    protected $solverBinary = null;
+    protected $solverBinary;
 
     /**
      * Create scheduler.
@@ -104,7 +104,7 @@ class Scheduler
         }
 
         // Sort by duration (shortest first) - shorter terms are typically more constrained
-        usort($unlockedTerms, function (TermInterface $a, TermInterface $b) {
+        \usort($unlockedTerms, function (TermInterface $a, TermInterface $b) {
             return ($a->getTo()->getTimestamp() - $a->getFrom()->getTimestamp()) <=> ($b->getTo()->getTimestamp() - $b->getFrom()->getTimestamp());
         });
 
@@ -259,7 +259,7 @@ class Scheduler
     {
         $count = \count($terms);
 
-        for ($i = $fromIndex; $i < $count; $i++) {
+        for ($i = $fromIndex; $i < $count; ++$i) {
             if (!$this->hasValidItem($terms[$i])) {
                 return false;
             }
@@ -312,7 +312,7 @@ class Scheduler
 
         $input = [
             'items' => \array_map('intval', \array_keys($this->items)),
-            'terms' => [],
+            'terms' => []
         ];
 
         foreach ($this->terms as $index => $term) {
@@ -320,7 +320,7 @@ class Scheduler
                 'id' => $index,
                 'from' => $term->getFrom()->getTimestamp(),
                 'to' => $term->getTo()->getTimestamp(),
-                'locked_id' => $term->getLockedId(),
+                'locked_id' => $term->getLockedId()
             ];
         }
 
