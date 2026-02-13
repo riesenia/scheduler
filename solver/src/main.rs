@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::Read;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, Instant};
 
 /// How many levels deep to use parallel branching.
 /// Below this depth, we switch to sequential backtracking.
@@ -14,6 +15,8 @@ const PARALLEL_DEPTH: usize = 3;
 struct Input {
     items: Vec<i32>,
     terms: Vec<TermInput>,
+    #[serde(default)]
+    timeout: Option<f64>,
 }
 
 #[derive(Deserialize)]
@@ -43,6 +46,9 @@ enum Output {
         message: String,
         conflicts: Vec<usize>,
     },
+
+    #[serde(rename = "timeout")]
+    Timeout { message: String },
 }
 
 #[derive(Serialize, Clone)]
@@ -180,9 +186,14 @@ fn solve(input: Input) -> Output {
 
     // ── Search ──────────────────────────────────────────────────────────────
     let found = AtomicBool::new(false);
+    let timed_out = AtomicBool::new(false);
+    let deadline = input.timeout.map(|secs| Instant::now() + Duration::from_secs_f64(secs));
 
-    match par_search(&unlocked, 0, &state, &conflicts, n_items, &found) {
+    match par_search(&unlocked, 0, &state, &conflicts, n_items, &found, &timed_out, deadline) {
         Some(final_state) => build_ok(&final_state, terms, item_ids),
+        None if timed_out.load(Ordering::Relaxed) => Output::Timeout {
+            message: "Scheduler timeout exceeded".into(),
+        },
         None => {
             let ids: Vec<usize> = unlocked.iter().map(|&ti| terms[ti].id).collect();
             Output::Conflict {
@@ -216,11 +227,17 @@ fn par_search(
     conflicts: &[Vec<bool>],
     n_items: usize,
     found: &AtomicBool,
+    timed_out: &AtomicBool,
+    deadline: Option<Instant>,
 ) -> Option<State> {
     if idx >= unlocked.len() {
         return Some(state.clone());
     }
-    if found.load(Ordering::Relaxed) {
+    if found.load(Ordering::Relaxed) || timed_out.load(Ordering::Relaxed) {
+        return None;
+    }
+    if deadline.is_some_and(|d| Instant::now() >= d) {
+        timed_out.store(true, Ordering::Relaxed);
         return None;
     }
 
@@ -234,7 +251,7 @@ fn par_search(
     // Use parallel branching at the top levels of the search tree
     if idx < PARALLEL_DEPTH && valid.len() > 1 {
         valid.par_iter().find_map_any(|&ii| {
-            if found.load(Ordering::Relaxed) {
+            if found.load(Ordering::Relaxed) || timed_out.load(Ordering::Relaxed) {
                 return None;
             }
             let mut s = state.clone();
@@ -242,7 +259,7 @@ fn par_search(
             if !forward_check(unlocked, idx + 1, &s, conflicts, n_items) {
                 return None;
             }
-            let result = par_search(unlocked, idx + 1, &s, conflicts, n_items, found);
+            let result = par_search(unlocked, idx + 1, &s, conflicts, n_items, found, timed_out, deadline);
             if result.is_some() {
                 found.store(true, Ordering::Relaxed);
             }
@@ -251,7 +268,7 @@ fn par_search(
     } else {
         // Switch to sequential backtracking (no more cloning)
         let mut s = state.clone();
-        if seq_search(unlocked, idx, &mut s, conflicts, n_items, found) {
+        if seq_search(unlocked, idx, &mut s, conflicts, n_items, found, timed_out, deadline) {
             Some(s)
         } else {
             None
@@ -268,11 +285,17 @@ fn seq_search(
     conflicts: &[Vec<bool>],
     n_items: usize,
     found: &AtomicBool,
+    timed_out: &AtomicBool,
+    deadline: Option<Instant>,
 ) -> bool {
     if idx >= unlocked.len() {
         return true;
     }
-    if found.load(Ordering::Relaxed) {
+    if found.load(Ordering::Relaxed) || timed_out.load(Ordering::Relaxed) {
+        return false;
+    }
+    if deadline.is_some_and(|d| Instant::now() >= d) {
+        timed_out.store(true, Ordering::Relaxed);
         return false;
     }
 
@@ -283,7 +306,7 @@ fn seq_search(
         state.assign(ti, ii);
 
         if forward_check(unlocked, idx + 1, state, conflicts, n_items)
-            && seq_search(unlocked, idx + 1, state, conflicts, n_items, found)
+            && seq_search(unlocked, idx + 1, state, conflicts, n_items, found, timed_out, deadline)
         {
             return true;
         }

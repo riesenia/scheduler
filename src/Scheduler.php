@@ -20,6 +20,12 @@ class Scheduler
     /** @var string|null */
     protected $solverBinary;
 
+    /** @var float|null */
+    protected $timeout;
+
+    /** @var float */
+    private $startTime = 0.0;
+
     /**
      * Create scheduler.
      *
@@ -50,10 +56,24 @@ class Scheduler
     }
 
     /**
+     * Set timeout in seconds.
+     *
+     * @return $this
+     */
+    public function setTimeout(float $seconds): self
+    {
+        $this->timeout = $seconds;
+
+        return $this;
+    }
+
+    /**
      * Schedule terms on items.
      */
     public function schedule()
     {
+        $this->startTime = \microtime(true);
+
         if ($this->solverBinary !== null) {
             $this->solveExternal();
 
@@ -157,6 +177,16 @@ class Scheduler
     }
 
     /**
+     * Check if timeout has been exceeded.
+     */
+    private function checkTimeout(): void
+    {
+        if ($this->timeout !== null && (\microtime(true) - $this->startTime) >= $this->timeout) {
+            throw new SchedulerException('Scheduler timeout exceeded');
+        }
+    }
+
+    /**
      * Assign a term to an item.
      */
     private function setTermItem(TermInterface $term, int $id)
@@ -189,6 +219,8 @@ class Scheduler
         if ($termIndex >= \count($unlockedTerms)) {
             return true;
         }
+
+        $this->checkTimeout();
 
         $term = $unlockedTerms[$termIndex];
 
@@ -315,6 +347,10 @@ class Scheduler
             'terms' => []
         ];
 
+        if ($this->timeout !== null) {
+            $input['timeout'] = $this->timeout;
+        }
+
         foreach ($this->terms as $index => $term) {
             $input['terms'][] = [
                 'id' => $index,
@@ -372,6 +408,9 @@ class Scheduler
                 $e->setItem($result['item_id']);
 
                 throw $e;
+
+            case 'timeout':
+                throw new SchedulerException('Scheduler timeout exceeded');
 
             case 'conflict':
                 $e = new SchedulerException($result['message']);

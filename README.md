@@ -47,7 +47,7 @@ Term is defined by its starting and ending date (*getFrom()* and *getTo()* metho
 
 ### Scheduling
 
-Calling *schedule()* method distibutes terms to items correctly. If this is not possible, scheduler throws *SchedulerException* with the information which terms overlap.
+Calling *schedule()* method distributes terms to items correctly. If this is not possible, scheduler throws *SchedulerException* with the information which terms overlap.
 
 ```php
 use Riesenia\Scheduler\SchedulerException;
@@ -61,3 +61,33 @@ try {
     \var_dump($e->getConflictingTerms());
 }
 ```
+
+### External solver binary
+
+For large inputs, the built-in PHP backtracking solver may be too slow. The package includes an optional Rust-based solver in the `solver/` directory that uses parallel search for significantly better performance.
+
+Build the binary:
+
+```bash
+cd solver
+cargo build --release
+# binary will be at solver/target/release/scheduler-solver
+```
+
+Then point the scheduler to it:
+
+```php
+$scheduler->setSolverBinary('/path/to/scheduler-solver');
+```
+
+The solver communicates via JSON over stdin/stdout and is fully compatible with the PHP solver — same input, same results.
+
+### Timeout
+
+Both the PHP and external solver support a timeout (in seconds). If the scheduler does not find a solution within the given time, it throws *SchedulerException*.
+
+```php
+$scheduler->setTimeout(10);
+```
+
+When using the external solver, the timeout is passed in the JSON input and handled natively by the Rust binary — the process exits cleanly with a timeout status.
